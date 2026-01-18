@@ -11,8 +11,7 @@ export const AppLayout = ({ children }) => {
       {/* 1. DESKTOP SIDEBAR (Hidden on mobile) */}
       <Sidebar isMobile={false} />
 
-      {/* 2. MOBILE SIDEBAR (Overlay) */}
-      {/* z-[200] ensures the sidebar is ALWAYS the highest thing when open */}
+      {/* 2. MOBILE SIDEBAR (Overlay) - HIGHEST LAYER (z-50) */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-[200] md:hidden">
           {/* Backdrop */}
@@ -26,11 +25,12 @@ export const AppLayout = ({ children }) => {
       )}
 
       {/* 3. MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
+      <div className="flex-1 flex flex-col overflow-hidden w-full relative">
         
-        {/* Mobile Header */}
-        {/* UPDATED: z-[100] forces this bar to sit ON TOP of your Transactions table */}
-        <div className="md:hidden bg-white shadow-sm h-16 flex items-center justify-between px-4 shrink-0 relative z-[100]">
+        {/* --- MOBILE HEADER (UPDATED) --- */}
+        {/* 'fixed top-0' pins it to the top of the screen */}
+        {/* 'z-40' keeps it above the page content */}
+        <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white shadow-sm flex items-center justify-between px-4 z-40">
           <span className="text-xl font-bold text-brand-navy">K-Ledger</span>
           
           <button 
@@ -41,9 +41,9 @@ export const AppLayout = ({ children }) => {
           </button>
         </div>
 
-        {/* Page Content */}
-        {/* z-0 ensures this stays UNDER the header */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative z-0">
+        {/* --- PAGE CONTENT --- */}
+        {/* 'pt-20' adds padding at the top so content doesn't hide behind the fixed header */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 pt-20 md:pt-8 z-0">
            {children}
         </main>
       </div>
