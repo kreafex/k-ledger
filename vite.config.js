@@ -15,19 +15,22 @@ export default defineConfig({
         description: 'Personal Finance & Life Planner',
         theme_color: '#ffffff',
         background_color: '#ffffff',
-        display: 'standalone', // <--- This hides the browser URL bar
+        display: 'standalone',
         orientation: 'portrait',
+        scope: '/',
         start_url: '/',
         icons: [
           {
-            src: '/logo-192.png', // We will create this in Step 3
+            src: 'logo-192.png', // Removed the leading slash
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable' // <--- ADD THIS
           },
           {
-            src: '/logo-512.png', // We will create this in Step 3
+            src: 'logo-512.png', // Removed the leading slash
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable' // <--- ADD THIS
           }
         ]
       }
