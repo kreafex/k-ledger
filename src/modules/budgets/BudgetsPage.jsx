@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2 } from 'lucide-react'; // Removed 'Menu' and 'Sidebar' imports
+import { Plus, Trash2 } from 'lucide-react'; 
 import { BudgetModal } from '../dashboard/BudgetModal';
-import { AppLayout } from '../dashboard/AppLayout'; // <--- USE THIS
+import { AppLayout } from '../dashboard/AppLayout'; // <--- THIS IS THE SECRET SAUCE
 
 export const BudgetsPage = () => {
   const navigate = useNavigate();
@@ -12,12 +12,11 @@ export const BudgetsPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [budgets, setBudgets] = useState([]);
 
-  // --- LOGIC: Fetch & Calculate Budgets (OPTIMIZED) ---
+  // --- LOGIC: Fetch & Calculate Budgets ---
   const loadBudgetData = async (userId) => {
-    // 1. Get Budgets
     const { data: userBudgets } = await supabase.from('budgets').select('*').eq('owner_id', userId);
     
-    // 2. OPTIMIZATION: Get Transactions for THIS Month ONLY
+    // Get Transactions for THIS Month ONLY
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     
@@ -61,7 +60,7 @@ export const BudgetsPage = () => {
   if (loading) return <div className="h-screen flex items-center justify-center text-brand-navy">Loading...</div>;
 
   return (
-    <AppLayout>
+    <AppLayout> {/* <--- WRAPPED IN LAYOUT = WORKING BUTTON */}
       <div className="max-w-4xl mx-auto">
         
         <div className="flex justify-between items-center mb-8">
@@ -96,7 +95,6 @@ export const BudgetsPage = () => {
                     </div>
                   </div>
                   
-                  {/* Progress Bar */}
                   <div className="w-full bg-gray-200 rounded-full h-4">
                     <div className={`h-4 rounded-full transition-all duration-500 ${b.isOver ? 'bg-red-600' : 'bg-green-500'}`} style={{ width: `${b.percent}%` }}></div>
                   </div>
@@ -115,7 +113,6 @@ export const BudgetsPage = () => {
           )}
         </div>
       </div>
-
       <BudgetModal isOpen={showModal} onClose={() => setShowModal(false)} userId={user?.id} onSuccess={() => loadBudgetData(user.id)} />
     </AppLayout>
   );
