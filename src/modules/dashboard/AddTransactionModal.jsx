@@ -48,38 +48,68 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
 
   if (!isOpen) return null;
 
+  // --- THIS IS THE FIXED SUBMIT FUNCTION ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    // 1. VALIDATION: Ensure amount is a valid number
+    const finalAmount = parseFloat(formData.amount);
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+        alert("Please enter a valid amount greater than 0");
+        setLoading(false);
+        return;
+    }
+
     try {
+      // 2. AUTH CHECK: Get the current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        alert("You seem to be logged out. Please refresh the page.");
+        setLoading(false);
+        return;
+      }
+
+      // 3. CONSTRUCT PAYLOAD: Add owner_id safely
       const payload = {
-        amount: parseFloat(formData.amount),
+        amount: finalAmount,
         type: formData.type,
         category: formData.category,
         frequency: formData.frequency,
         description: formData.description,
-        date: new Date(formData.date).toISOString()
+        date: new Date(formData.date).toISOString(),
+        owner_id: user.id // <--- Explicitly adding the User ID
       };
 
       if (transactionToEdit) {
         // Update Logic
-        await supabase.from('transactions').update(payload).eq('id', transactionToEdit.id);
+        const { error } = await supabase
+            .from('transactions')
+            .update(payload)
+            .eq('id', transactionToEdit.id);
+        
+        if (error) throw error;
       } else {
         // Insert Logic
-        // Fetch org_id if needed, or insert with owner_id
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('transactions').insert([{ ...payload, owner_id: user.id }]); 
+        const { error } = await supabase
+            .from('transactions')
+            .insert([payload]); 
+            
+        if (error) throw error;
       }
 
+      // Success!
       onSuccess();
       onClose();
     } catch (error) {
-      alert('Error: ' + error.message);
+      console.error("Save Error:", error); // Logs full error to console
+      alert('Error saving transaction: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
+  // ----------------------------------------
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4 z-50 backdrop-blur-sm">
@@ -94,7 +124,7 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
 
         <form onSubmit={handleSubmit} className="space-y-5">
           
-          {/* TYPE TOGGLES - UPDATED WITH SAVINGS */}
+          {/* TYPE TOGGLES */}
           <div className="flex rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <button type="button" onClick={() => setFormData({ ...formData, type: 'income' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold ${formData.type === 'income' ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INCOME</button>
             <button type="button" onClick={() => setFormData({ ...formData, type: 'expense' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-r border-gray-200 ${formData.type === 'expense' ? 'bg-red-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>EXPENSE</button>
