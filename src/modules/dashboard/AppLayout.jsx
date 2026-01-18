@@ -28,15 +28,21 @@ export const AppLayout = ({ children }) => {
       <div className="flex-1 flex flex-col overflow-hidden w-full">
         
         {/* Mobile Header (Hamburger) */}
-        <div className="md:hidden bg-white shadow-sm h-16 flex items-center justify-between px-4 shrink-0 z-10">
+        {/* UPDATED: Added 'relative z-40' to the container so the bar stays on top */}
+        <div className="md:hidden bg-white shadow-sm h-16 flex items-center justify-between px-4 shrink-0 relative z-40">
           <span className="text-xl font-bold text-brand-navy">K-Ledger</span>
-          <button onClick={() => setSidebarOpen(true)} className="p-2 text-brand-navy hover:bg-gray-100 rounded-md">
+          
+          {/* UPDATED: Added 'relative z-50' to the button to force it to be clickable */}
+          <button 
+            onClick={() => setSidebarOpen(true)} 
+            className="p-2 text-brand-navy hover:bg-gray-100 rounded-md relative z-50"
+          >
             <Menu size={24} />
           </button>
         </div>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative z-0">
            {children}
         </main>
       </div>
