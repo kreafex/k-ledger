@@ -35,7 +35,8 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, userId }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4 z-50">
+    // UPDATED: Changed z-50 to z-[300] to ensure it sits on top of Sidebar/Header
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4 z-[300]">
       <div className="relative mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">Set New Budget</h3>
@@ -45,7 +46,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, userId }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Category</label>
-            <select className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
+            <select className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm bg-white" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
               <option>Food</option>
               <option>Transport</option>
               <option>Rent</option>
@@ -62,13 +63,13 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, userId }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Period</label>
-            <select className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm" value={formData.period} onChange={(e) => setFormData({ ...formData, period: e.target.value })}>
+            <select className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm bg-white" value={formData.period} onChange={(e) => setFormData({ ...formData, period: e.target.value })}>
               <option>Monthly</option>
               <option>Weekly</option>
             </select>
           </div>
 
-          <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-brand-navy hover:bg-slate-800">
+          <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-brand-navy hover:bg-slate-800 transition-colors">
             {loading ? 'Saving...' : 'Set Budget'}
           </button>
         </form>
