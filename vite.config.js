@@ -10,27 +10,27 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'K-Ledger Finance',
+        name: 'K-Ledger',
         short_name: 'K-Ledger',
-        description: 'Personal Finance & Life Planner',
+        description: 'Personal Finance Planner',
         theme_color: '#ffffff',
         background_color: '#ffffff',
-        display: 'standalone',
+        display: 'standalone',      // <--- Forces "App Mode" (No browser bar)
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
         icons: [
           {
-            src: 'logo-192.png', // Removed the leading slash
+            src: 'logo-192.png',    // <--- Make sure this file exists in /public
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable' // <--- ADD THIS
+            purpose: 'any maskable' // <--- REQUIRED for "Real App" status
           },
           {
-            src: 'logo-512.png', // Removed the leading slash
+            src: 'logo-512.png',    // <--- Make sure this file exists in /public
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable' // <--- ADD THIS
+            purpose: 'any maskable' // <--- REQUIRED for "Real App" status
           }
         ]
       }
