@@ -65,7 +65,6 @@ export const DashboardPage = () => {
     rawTransactions.forEach(t => {
         const amt = Number(t.amount);
         
-        // --- FIXED LOGIC HERE ---
         // 1. If it is an Opening Balance (regardless of type), add to Initial ONLY.
         if (t.is_initial || t.type === 'initial') {
             globalInitial += amt;
@@ -107,8 +106,10 @@ export const DashboardPage = () => {
     filteredData.forEach(t => {
       const amt = Number(t.amount);
       
-      // Skip "Initial Balances" for the Periodic View (e.g. Income Card shouldn't show Opening Balance)
-      if (t.is_initial || t.type === 'initial') return;
+      // --- THE FIX IS HERE ---
+      // Only hide Initial Balances if we are filtering by a specific time (e.g., "This Month").
+      // If "All Time" is selected, we SHOW them so the categories reflect Total Wealth.
+      if ((t.is_initial || t.type === 'initial') && dateFilter !== 'ALL') return;
 
       if (t.type === 'income') { 
         viewIncome += amt; 
