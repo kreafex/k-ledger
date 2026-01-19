@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabase';
-import { Logo } from '../../components/Logo';
-import { useNavigate } from 'react-router-dom'; // Import the redirect tool
+import { useNavigate } from 'react-router-dom';
+import { Wallet, Loader2 } from 'lucide-react'; // Using standard icons to prevent build errors
 
 export const AuthPage = () => {
-  const navigate = useNavigate(); // Initialize the redirect tool
+  const navigate = useNavigate();
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [accountType, setAccountType] = useState('personal'); // 'personal' or 'business'
@@ -43,7 +43,7 @@ export const AuthPage = () => {
           }
         });
         if (error) throw error;
-        alert('Check your email for the confirmation link!');
+        alert('Success! Check your email for the confirmation link.');
       } else {
         // --- LOGIN LOGIC ---
         const { error } = await supabase.auth.signInWithPassword({
@@ -66,16 +66,21 @@ export const AuthPage = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="flex justify-center">
-          <Logo className="h-20 w-auto" /> 
+        <div className="flex justify-center mb-4">
+          <div className="bg-brand-navy p-3 rounded-xl">
+             <Wallet className="h-10 w-10 text-white" /> 
+          </div>
         </div>
-        <h2 className="mt-6 text-3xl font-extrabold text-brand-navy">
+        <h2 className="text-3xl font-extrabold text-brand-navy">
           {isSignUp ? 'Create your account' : 'Sign in to K-Ledger'}
         </h2>
+        <p className="mt-2 text-sm text-gray-600">
+           {isSignUp ? 'Start managing your wealth today' : 'Welcome back'}
+        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-brand-orange">
+        <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border-t-4 border-brand-orange">
           
           <form className="space-y-6" onSubmit={handleSubmit}>
             
@@ -87,7 +92,7 @@ export const AuthPage = () => {
                   <button
                     type="button"
                     onClick={() => setAccountType('personal')}
-                    className={`flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium ${
+                    className={`flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-bold transition-all ${
                       accountType === 'personal'
                         ? 'bg-brand-navy text-white border-brand-navy'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -98,7 +103,7 @@ export const AuthPage = () => {
                   <button
                     type="button"
                     onClick={() => setAccountType('business')}
-                    className={`flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium ${
+                    className={`flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-bold transition-all ${
                       accountType === 'business'
                         ? 'bg-brand-orange text-white border-brand-orange'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -170,10 +175,11 @@ export const AuthPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
+              className={`w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-all
               ${isSignUp && accountType === 'business' ? 'bg-brand-orange hover:bg-orange-600' : 'bg-brand-navy hover:bg-slate-800'}
               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-orange`}
             >
+              {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : null}
               {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
             </button>
           </form>
