@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Pencil, Trash2, Wallet } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Wallet, Calendar } from 'lucide-react'; // <--- Added Calendar Icon
 import { AddTransactionModal } from '../dashboard/AddTransactionModal';
 import { AppLayout } from '../dashboard/AppLayout'; 
 
@@ -9,13 +9,16 @@ export const TransactionsPage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  
+  // --- FILTERS ---
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('THIS_MONTH'); // <--- NEW: Default to This Month
+  
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
   const loadTransactions = async (userId) => {
-    // UPDATED: Now selecting the new columns 'account' and 'is_initial'
     const { data } = await supabase
       .from('transactions')
       .select('*')
@@ -42,25 +45,60 @@ export const TransactionsPage = () => {
 
   const handleEdit = (t) => { setEditingTransaction(t); setShowModal(true); };
 
-  // --- UPDATED FILTER LOGIC ---
-  const filteredData = transactions.filter(t => {
-    const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          t.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.account?.toLowerCase().includes(searchTerm.toLowerCase()); // Added Account Search
+  // --- DATE FILTER LOGIC ---
+  const checkDate = (dateString) => {
+    if (dateFilter === 'ALL') return true;
     
-    // The "INITIAL" filter now checks the 'is_initial' flag OR the old 'type'
-    if (filterType === 'INITIAL') {
-        return matchesSearch && (t.is_initial === true || t.type === 'initial');
+    const tDate = new Date(dateString);
+    const now = new Date();
+    
+    // Reset hours for accurate comparison
+    tDate.setHours(0,0,0,0);
+    now.setHours(0,0,0,0);
+
+    if (dateFilter === 'TODAY') {
+        return tDate.getTime() === now.getTime();
     }
     
-    // For other filters, we match the Type normally
-    const matchesType = filterType === 'ALL' || t.type.toUpperCase() === filterType;
-    return matchesSearch && matchesType;
+    if (dateFilter === 'THIS_WEEK') {
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+        return tDate >= startOfWeek;
+    }
+    
+    if (dateFilter === 'THIS_MONTH') {
+        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+    }
+
+    if (dateFilter === 'THIS_YEAR') {
+        return tDate.getFullYear() === now.getFullYear();
+    }
+    
+    return true;
+  };
+
+  // --- COMBINED FILTER LOGIC ---
+  const filteredData = transactions.filter(t => {
+    // 1. Search
+    const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          t.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          t.account?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // 2. Type Filter
+    let matchesType = true;
+    if (filterType === 'INITIAL') {
+        matchesType = (t.is_initial === true || t.type === 'initial');
+    } else if (filterType !== 'ALL') {
+        matchesType = t.type.toUpperCase() === filterType;
+    }
+
+    // 3. Date Filter
+    const matchesDate = checkDate(t.date);
+
+    return matchesSearch && matchesType && matchesDate;
   });
 
-  // Helper to determine if a transaction is "Positive" (Money In)
   const isPositive = (type) => ['income', 'initial'].includes(type) || (type === 'savings' && false); 
-  // Note: Savings logic depends on how you view it, but usually standard expenses are Red.
 
   return (
     <AppLayout>
@@ -77,17 +115,36 @@ export const TransactionsPage = () => {
           </button>
         </div>
 
-        {/* Filters & Search */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row gap-4 items-center">
+        {/* Filters Bar */}
+        <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col lg:flex-row gap-4 items-center justify-between">
           
-          {/* SEARCH */}
-          <div className="relative w-full md:w-1/3">
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            <input type="text" placeholder="Search category, account..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-navy outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          {/* LEFT: Search & Date Filter */}
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+             {/* Search */}
+             <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                <input type="text" placeholder="Search..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-navy outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+             </div>
+
+             {/* DATE DROPDOWN */}
+             <div className="relative w-full sm:w-48">
+                <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                <select 
+                    value={dateFilter} 
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-navy outline-none bg-white cursor-pointer"
+                >
+                    <option value="ALL">All Time</option>
+                    <option value="TODAY">Today</option>
+                    <option value="THIS_WEEK">This Week</option>
+                    <option value="THIS_MONTH">This Month</option>
+                    <option value="THIS_YEAR">This Year</option>
+                </select>
+             </div>
           </div>
           
-          {/* FILTER BUTTONS */}
-          <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+          {/* RIGHT: Type Buttons */}
+          <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
             {['ALL', 'INCOME', 'EXPENSE', 'SAVINGS', 'INVESTMENT', 'INITIAL'].map(type => (
               <button key={type} onClick={() => setFilterType(type)} className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${filterType === type ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{type}</button>
             ))}
@@ -102,7 +159,7 @@ export const TransactionsPage = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th> {/* NEW COLUMN */}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th> 
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -110,7 +167,7 @@ export const TransactionsPage = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredData.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-10 text-center text-gray-400 text-sm">No records found.</td></tr>
+                  <tr><td colSpan="6" className="px-6 py-10 text-center text-gray-400 text-sm">No records found for this period.</td></tr>
                 ) : (
                   filteredData.map((t) => (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
@@ -127,7 +184,6 @@ export const TransactionsPage = () => {
                         </span>
                       </td>
 
-                      {/* NEW ACCOUNT COLUMN */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                             <Wallet size={14} className="text-gray-400"/>
