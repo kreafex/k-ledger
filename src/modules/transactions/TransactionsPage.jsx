@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Pencil, Trash2, Wallet, Calendar } from 'lucide-react'; // <--- Added Calendar Icon
+import { Search, Plus, Pencil, Trash2, Wallet, Calendar, ArrowRightLeft } from 'lucide-react'; // <--- Added Arrow Icon
 import { AddTransactionModal } from '../dashboard/AddTransactionModal';
 import { AppLayout } from '../dashboard/AppLayout'; 
 
@@ -13,12 +13,13 @@ export const TransactionsPage = () => {
   // --- FILTERS ---
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState('THIS_MONTH'); // <--- NEW: Default to This Month
+  const [dateFilter, setDateFilter] = useState('THIS_MONTH'); 
   
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
   const loadTransactions = async (userId) => {
+    // Select all columns
     const { data } = await supabase
       .from('transactions')
       .select('*')
@@ -56,9 +57,7 @@ export const TransactionsPage = () => {
     tDate.setHours(0,0,0,0);
     now.setHours(0,0,0,0);
 
-    if (dateFilter === 'TODAY') {
-        return tDate.getTime() === now.getTime();
-    }
+    if (dateFilter === 'TODAY') return tDate.getTime() === now.getTime();
     
     if (dateFilter === 'THIS_WEEK') {
         const startOfWeek = new Date(now);
@@ -98,7 +97,12 @@ export const TransactionsPage = () => {
     return matchesSearch && matchesType && matchesDate;
   });
 
-  const isPositive = (type) => ['income', 'initial'].includes(type) || (type === 'savings' && false); 
+  // Helper for colors
+  const isPositive = (t) => {
+      if (['income', 'initial'].includes(t.type) || t.is_initial) return true;
+      if (t.type === 'transfer') return t.amount > 0; // Deposit is positive
+      return false; 
+  };
 
   return (
     <AppLayout>
@@ -143,9 +147,9 @@ export const TransactionsPage = () => {
              </div>
           </div>
           
-          {/* RIGHT: Type Buttons */}
+          {/* RIGHT: Type Buttons - ADDED TRANSFER */}
           <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
-            {['ALL', 'INCOME', 'EXPENSE', 'SAVINGS', 'INVESTMENT', 'INITIAL'].map(type => (
+            {['ALL', 'INCOME', 'EXPENSE', 'TRANSFER', 'SAVINGS', 'INVESTMENT', 'INITIAL'].map(type => (
               <button key={type} onClick={() => setFilterType(type)} className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${filterType === type ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{type}</button>
             ))}
           </div>
@@ -178,6 +182,7 @@ export const TransactionsPage = () => {
                           ${t.is_initial ? 'bg-teal-100 text-teal-800' : 
                             t.type === 'income' ? 'bg-green-100 text-green-800' : 
                             t.type === 'expense' ? 'bg-red-100 text-red-800' : 
+                            t.type === 'transfer' ? 'bg-blue-100 text-blue-800' : 
                             t.type === 'savings' ? 'bg-cyan-100 text-cyan-800' : 
                             'bg-purple-100 text-purple-800'}`}>
                           {t.category}
@@ -192,12 +197,15 @@ export const TransactionsPage = () => {
                       </td>
                       
                       <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate">
-                        {t.description || '-'} <span className="text-gray-400 text-xs">({t.frequency || 'One-time'})</span>
+                        {/* Show Arrow for transfers */}
+                        {t.type === 'transfer' && <ArrowRightLeft size={12} className="inline mr-1 text-blue-500"/>}
+                        {t.description || '-'} 
+                        <span className="text-gray-400 text-xs ml-1">({t.frequency || 'One-time'})</span>
                       </td>
                       
                       <td className={`px-6 py-4 text-sm text-right font-bold whitespace-nowrap
-                        ${isPositive(t.type) || t.is_initial ? 'text-green-600' : 'text-red-600'}`}>
-                        {isPositive(t.type) || t.is_initial ? '+' : '-'} {Number(t.amount).toLocaleString()}
+                        ${isPositive(t) ? 'text-green-600' : 'text-red-600'}`}>
+                        {isPositive(t) ? '+' : ''} {Number(t.amount).toLocaleString()}
                       </td>
                       
                       <td className="px-6 py-4 text-center whitespace-nowrap">
