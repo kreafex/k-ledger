@@ -2,10 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
-// Import your pages
+// --- IMPORT PATHS FIXED ---
+
+// 1. Landing Page (File: src/modules/landing/LandingPage.jsx)
 import { LandingPage } from './modules/landing/LandingPage';
-import { DashboardPage } from './modules/dashboard/DashboardPage';
+
+// 2. Dashboard (File: src/modules/dashboard/Dashboard.jsx) <--- FIXED PATH
+import { DashboardPage } from './modules/dashboard/Dashboard';
+
+// 3. Transactions (File: src/modules/transactions/TransactionsPage.jsx)
 import { TransactionsPage } from './modules/transactions/TransactionsPage';
+
+// 4. Auth (File: src/modules/auth/AuthPage.jsx)
 import { AuthPage } from './modules/auth/AuthPage';
 
 const App = () => {
