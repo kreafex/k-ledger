@@ -10,7 +10,7 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
   // Default empty state
   const defaultState = {
     amount: '',
-    type: 'expense', // Default to expense
+    type: 'expense', 
     category: 'Food',
     frequency: 'One-time',
     description: '',
@@ -31,13 +31,22 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
           date: new Date(transactionToEdit.date).toISOString().split('T')[0]
         });
         
-        // Custom category check
+        // --- UPDATED STANDARD LIST TO INCLUDE SPECIFIC ACCOUNTS ---
         const standardCats = [
-          'Savings', 'Emergency Fund', 'Vacation', 'Gadgets', 
+          // Income
           'Salary', 'Business', 'Side Hustle', 'Gifts', 
+          // Expense
           'Food', 'Rent', 'Transport', 'Entertainment', 'Shopping', 'Bills',
-          'Stocks (NSE)', 'MMF', 'Crypto', 'Land', 'Business Capital'
+          // Savings
+          'Emergency Fund', 'Vacation', 'Gadgets', 'New Laptop', 'Car Fund', 'General Savings',
+          // Investment
+          'Stocks (NSE)', 'MMF', 'Crypto', 'Land', 'Business Capital',
+          // Initial / Assets (Expanded List)
+          'Bank Balance', 'M-Pesa', 'Cash', 'M-Shwari', 'KCB', 'Equity', 'Co-op', 
+          'Sacco', 'PayPal', 'Binance', 'Creditor', 'Other Asset'
         ];
+        
+        // If the category is NOT in the list above, switch to "Custom Input" mode automatically
         setIsCustomCategory(!standardCats.includes(transactionToEdit.category));
       } else {
         setFormData(defaultState);
@@ -48,12 +57,10 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
 
   if (!isOpen) return null;
 
-  // --- THIS IS THE FIXED SUBMIT FUNCTION ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // 1. VALIDATION: Ensure amount is a valid number
     const finalAmount = parseFloat(formData.amount);
     if (isNaN(finalAmount) || finalAmount <= 0) {
         alert("Please enter a valid amount greater than 0");
@@ -62,7 +69,6 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
     }
 
     try {
-      // 2. AUTH CHECK: Get the current user ID
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -71,7 +77,6 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
         return;
       }
 
-      // 3. CONSTRUCT PAYLOAD: Add owner_id safely
       const payload = {
         amount: finalAmount,
         type: formData.type,
@@ -79,40 +84,34 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
         frequency: formData.frequency,
         description: formData.description,
         date: new Date(formData.date).toISOString(),
-        owner_id: user.id // <--- Explicitly adding the User ID
+        owner_id: user.id 
       };
 
       if (transactionToEdit) {
-        // Update Logic
         const { error } = await supabase
             .from('transactions')
             .update(payload)
             .eq('id', transactionToEdit.id);
-        
         if (error) throw error;
       } else {
-        // Insert Logic
         const { error } = await supabase
             .from('transactions')
             .insert([payload]); 
-            
         if (error) throw error;
       }
 
-      // Success!
       onSuccess();
       onClose();
     } catch (error) {
-      console.error("Save Error:", error); // Logs full error to console
+      console.error("Save Error:", error);
       alert('Error saving transaction: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
-  // ----------------------------------------
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4 z-[200] backdrop-blur-sm">
       <div className="relative mx-auto p-6 border w-full max-w-md shadow-2xl rounded-xl bg-white">
         
         <div className="flex justify-between items-center mb-6">
@@ -127,9 +126,10 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
           {/* TYPE TOGGLES */}
           <div className="flex rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <button type="button" onClick={() => setFormData({ ...formData, type: 'income' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold ${formData.type === 'income' ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INCOME</button>
-            <button type="button" onClick={() => setFormData({ ...formData, type: 'expense' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-r border-gray-200 ${formData.type === 'expense' ? 'bg-red-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>EXPENSE</button>
-            <button type="button" onClick={() => setFormData({ ...formData, type: 'savings' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-r border-gray-200 ${formData.type === 'savings' ? 'bg-cyan-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>SAVINGS</button>
-            <button type="button" onClick={() => setFormData({ ...formData, type: 'investment' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold ${formData.type === 'investment' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INVEST</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'expense' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'expense' ? 'bg-red-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>EXPENSE</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'savings' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'savings' ? 'bg-cyan-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>SAVING</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'investment' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'investment' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INVEST</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'initial' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'initial' ? 'bg-teal-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INITIAL</button>
           </div>
 
           <div className="flex gap-4">
@@ -157,11 +157,24 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
               }}>
                 {formData.type === 'income' && <><option>Salary</option><option>Business</option><option>Side Hustle</option><option>Gifts</option></>}
                 {formData.type === 'expense' && <><option>Food</option><option>Rent</option><option>Transport</option><option>Entertainment</option><option>Shopping</option><option>Bills</option></>}
-                
-                {/* NEW SAVINGS CATEGORIES */}
                 {formData.type === 'savings' && <><option>Emergency Fund</option><option>Vacation</option><option>New Laptop</option><option>Car Fund</option><option>General Savings</option></>}
-                
                 {formData.type === 'investment' && <><option>Stocks (NSE)</option><option>MMF</option><option>Crypto</option><option>Land</option><option>Business Capital</option></>}
+                
+                {/* --- EXTENDED INITIAL OPTIONS --- */}
+                {formData.type === 'initial' && <>
+                  <option>Bank Balance</option>
+                  <option>M-Pesa</option>
+                  <option>Cash</option>
+                  <option>M-Shwari</option>
+                  <option>KCB</option>
+                  <option>Equity</option>
+                  <option>Co-op</option>
+                  <option>Sacco</option>
+                  <option>PayPal</option>
+                  <option>Binance</option>
+                  <option>Creditor</option>
+                  <option>Other Asset</option>
+                </>}
                 
                 <option value="CUSTOM" className="font-bold text-brand-orange">+ Custom...</option>
               </select>
