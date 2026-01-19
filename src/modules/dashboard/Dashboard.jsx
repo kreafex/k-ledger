@@ -64,9 +64,10 @@ export const DashboardPage = () => {
         else if (t.type === 'initial') { initial += amt; }
       });
 
-      // --- UPDATED MATH: NET WORTH ---
-      // Net Worth = (Initial + Income) - Expenses
-      // We do NOT subtract savings/investments because you still own that money.
+      // --- THE FIX ---
+      // Old Math: (Income) - (Expense + Savings + Invest)
+      // New Math: (Income + Initial) - (Expense)
+      // We STOP subtracting savings/investments because that is money you still have!
       const netWorth = (initial + income) - expense;
 
       setTotals({ 
@@ -144,8 +145,7 @@ export const DashboardPage = () => {
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-lg sm:col-span-2 lg:col-span-1 relative overflow-hidden">
             <div className="flex justify-between items-start z-10 relative">
               <div>
-                {/* --- LABEL UPDATED HERE --- */}
-                <p className="text-slate-400 text-xs font-bold uppercase">Net Worth</p> 
+                <p className="text-slate-400 text-xs font-bold uppercase">Net Worth</p>
                 <h2 
                   onClick={() => setShowPrivacy(!showPrivacy)}
                   className={`text-2xl font-bold mt-1 cursor-pointer transition-all duration-300 ${showPrivacy ? 'blur-0' : 'blur-md'}`}
