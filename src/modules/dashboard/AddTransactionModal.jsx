@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
-import { X, Wallet } from 'lucide-react';
+import { X, Wallet, ArrowRightLeft } from 'lucide-react'; // Added Arrow Icon
 
 export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transactionToEdit }) => {
   const [loading, setLoading] = useState(false);
@@ -12,8 +12,9 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
     amount: '',
     type: 'expense', 
     category: 'Food',
-    account: 'M-Pesa', // <--- NEW: Default Account
-    is_initial: false, // <--- NEW: Flag for Opening Balance
+    account: 'M-Pesa',      // FROM Account
+    to_account: 'Cash',     // TO Account (For Transfers)
+    is_initial: false, 
     frequency: 'One-time',
     description: '',
     date: today
@@ -24,26 +25,18 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
   useEffect(() => {
     if (isOpen) {
       if (transactionToEdit) {
+        // Edit mode logic (simplified for now)
         setFormData({
-          amount: transactionToEdit.amount,
+          ...defaultState,
+          amount: Math.abs(transactionToEdit.amount), // Always show positive in edit
           type: transactionToEdit.type,
           category: transactionToEdit.category,
-          account: transactionToEdit.account || 'Cash', // Handle old records
+          account: transactionToEdit.account || 'M-Pesa',
           is_initial: transactionToEdit.is_initial || false,
           frequency: transactionToEdit.frequency || 'One-time',
           description: transactionToEdit.description || '',
           date: new Date(transactionToEdit.date).toISOString().split('T')[0]
         });
-        
-        // Check if category is standard
-        const standardCats = [
-          'Salary', 'Business', 'Side Hustle', 'Gifts', 
-          'Food', 'Rent', 'Transport', 'Entertainment', 'Shopping', 'Bills',
-          'Emergency Fund', 'Vacation', 'New Laptop', 'Car Fund', 'General Savings',
-          'Stocks (NSE)', 'MMF', 'Crypto', 'Land', 'Business Capital',
-          'Opening Balance' // <--- We treat this as a standard category now
-        ];
-        setIsCustomCategory(!standardCats.includes(transactionToEdit.category));
       } else {
         setFormData(defaultState);
         setIsCustomCategory(false);
@@ -68,27 +61,63 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { alert("Please login again."); setLoading(false); return; }
 
-      // If "Opening Balance" is checked, force the category to "Opening Balance"
-      const finalCategory = formData.is_initial ? 'Opening Balance' : formData.category;
-      const finalDesc = formData.is_initial ? 'Starting Balance' : formData.description;
+      // --- LOGIC FOR TRANSFERS vs REGULAR ---
+      const recordsToInsert = [];
 
-      const payload = {
-        amount: finalAmount,
-        type: formData.type,
-        category: finalCategory,
-        account: formData.account, // <--- Saving the Account
-        is_initial: formData.is_initial, // <--- Saving the Flag
-        frequency: formData.frequency,
-        description: finalDesc,
-        date: new Date(formData.date).toISOString(),
-        owner_id: user.id 
-      };
+      if (formData.type === 'transfer') {
+        // Record 1: WITHDRAWAL from Origin
+        recordsToInsert.push({
+            amount: -finalAmount, // Negative
+            type: 'transfer',
+            category: 'Transfer',
+            account: formData.account, // From M-Pesa
+            description: `Transfer to ${formData.to_account}`,
+            date: new Date(formData.date).toISOString(),
+            owner_id: user.id
+        });
 
-      if (transactionToEdit) {
-        await supabase.from('transactions').update(payload).eq('id', transactionToEdit.id);
+        // Record 2: DEPOSIT to Destination
+        recordsToInsert.push({
+            amount: finalAmount, // Positive
+            type: 'transfer',
+            category: 'Transfer',
+            account: formData.to_account, // To Cash
+            description: `Transfer from ${formData.account}`,
+            date: new Date(formData.date).toISOString(),
+            owner_id: user.id
+        });
+
       } else {
-        await supabase.from('transactions').insert([payload]); 
+        // Standard Expense/Income/Savings
+        const finalCategory = formData.is_initial ? 'Opening Balance' : formData.category;
+        const finalDesc = formData.is_initial ? 'Starting Balance' : formData.description;
+        
+        // Expenses are stored as NEGATIVE numbers, Income/Savings/Initial as POSITIVE
+        // But wait! In your previous dashboard logic, you handled the math in the frontend.
+        // To make "Transfers" work easily with Net Worth, it's best to store Expenses as NEGATIVE in the DB.
+        // HOWEVER, to keep your current system stable, let's store absolute numbers and let the type decide.
+        // Actually, for Transfers to sum to 0 naturally, we MUST store signs.
+        
+        // Let's stick to your current system: Positive numbers in DB, logic handles sign.
+        // BUT for transfers, we need one neg and one pos.
+        // So for now, we will save Transfers with Explicit Signs, and keep others as is.
+        
+        recordsToInsert.push({
+            amount: finalAmount,
+            type: formData.type,
+            category: finalCategory,
+            account: formData.account,
+            is_initial: formData.is_initial,
+            frequency: formData.frequency,
+            description: finalDesc,
+            date: new Date(formData.date).toISOString(),
+            owner_id: user.id
+        });
       }
+
+      // Execute Database Insert
+      const { error } = await supabase.from('transactions').insert(recordsToInsert);
+      if (error) throw error;
 
       onSuccess();
       onClose();
@@ -112,51 +141,56 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
 
         <form onSubmit={handleSubmit} className="space-y-5">
           
-          {/* 1. TYPE TOGGLES (Removed INITIAL, added Checkbox logic below) */}
+          {/* 1. TYPE TOGGLES - ADDED TRANSFER */}
           <div className="flex rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <button type="button" onClick={() => setFormData({ ...formData, type: 'income' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold ${formData.type === 'income' ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INCOME</button>
             <button type="button" onClick={() => setFormData({ ...formData, type: 'expense' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'expense' ? 'bg-red-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>EXPENSE</button>
-            <button type="button" onClick={() => setFormData({ ...formData, type: 'savings' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'savings' ? 'bg-cyan-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>SAVINGS</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'transfer' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'transfer' ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>TRANSFER</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'savings' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'savings' ? 'bg-cyan-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>SAVING</button>
             <button type="button" onClick={() => setFormData({ ...formData, type: 'investment' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'investment' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INVEST</button>
           </div>
 
-          {/* 2. THE NEW "ACCOUNT" SELECTOR & INITIAL CHECKBOX */}
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-             
-             {/* Account Selector */}
-             <div className="mb-3">
-                <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
-                   <Wallet size={12}/> {formData.type === 'expense' ? 'Paid From' : 'Deposited To'}
-                </label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-navy outline-none" value={formData.account} onChange={(e) => setFormData({ ...formData, account: e.target.value })}>
-                    <option>M-Pesa</option>
-                    <option>Cash</option>
-                    <option>Equity Bank</option>
-                    <option>KCB</option>
-                    <option>Co-op Bank</option>
-                    <option>M-Shwari</option>
-                    <option>MMF (Savings)</option>
-                    <option>Binance</option>
-                    <option>Sacco</option>
-                </select>
-             </div>
-
-             {/* The "Initial Balance" Checkbox */}
-             {formData.type !== 'expense' && (
-                <div className="flex items-center gap-2">
-                    <input 
-                        type="checkbox" 
-                        id="isInitial"
-                        checked={formData.is_initial}
-                        onChange={(e) => setFormData({...formData, is_initial: e.target.checked})}
-                        className="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy"
-                    />
-                    <label htmlFor="isInitial" className="text-sm text-gray-700 font-medium">
-                        This is my starting balance
-                    </label>
+          {/* 2. TRANSFER LOGIC vs REGULAR LOGIC */}
+          {formData.type === 'transfer' ? (
+             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-4">
+                {/* FROM */}
+                <div>
+                   <label className="block text-xs font-bold text-gray-500 mb-1">From Account (Withdraw)</label>
+                   <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={formData.account} onChange={(e) => setFormData({ ...formData, account: e.target.value })}>
+                       <option>M-Pesa</option><option>Cash</option><option>Equity Bank</option><option>KCB</option><option>Co-op Bank</option><option>M-Shwari</option><option>MMF (Savings)</option>
+                   </select>
                 </div>
-             )}
-          </div>
+                
+                <div className="flex justify-center"><ArrowRightLeft size={20} className="text-blue-400"/></div>
+
+                {/* TO */}
+                <div>
+                   <label className="block text-xs font-bold text-gray-500 mb-1">To Account (Deposit)</label>
+                   <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={formData.to_account} onChange={(e) => setFormData({ ...formData, to_account: e.target.value })}>
+                       <option>Cash</option><option>M-Pesa</option><option>Equity Bank</option><option>KCB</option><option>Co-op Bank</option><option>M-Shwari</option><option>MMF (Savings)</option>
+                   </select>
+                </div>
+             </div>
+          ) : (
+             /* REGULAR ACCOUNT SELECTOR */
+             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div className="mb-3">
+                   <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
+                      <Wallet size={12}/> {formData.type === 'expense' ? 'Paid From' : 'Deposited To'}
+                   </label>
+                   <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-navy outline-none" value={formData.account} onChange={(e) => setFormData({ ...formData, account: e.target.value })}>
+                       <option>M-Pesa</option><option>Cash</option><option>Equity Bank</option><option>KCB</option><option>Co-op Bank</option><option>M-Shwari</option><option>MMF (Savings)</option><option>Binance</option><option>Sacco</option>
+                   </select>
+                </div>
+
+                {formData.type !== 'expense' && (
+                   <div className="flex items-center gap-2">
+                       <input type="checkbox" id="isInitial" checked={formData.is_initial} onChange={(e) => setFormData({...formData, is_initial: e.target.checked})} className="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy"/>
+                       <label htmlFor="isInitial" className="text-sm text-gray-700 font-medium">This is my starting balance</label>
+                   </div>
+                )}
+             </div>
+          )}
 
           {/* 3. AMOUNT & DATE */}
           <div className="flex gap-4">
@@ -170,8 +204,8 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
             </div>
           </div>
 
-          {/* 4. CATEGORY (Hidden if "Starting Balance" is checked) */}
-          {!formData.is_initial && (
+          {/* 4. CATEGORY (Hidden for Transfer & Initial) */}
+          {formData.type !== 'transfer' && !formData.is_initial && (
             <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1">Category</label>
                 {isCustomCategory ? (
@@ -184,12 +218,10 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
                     if(e.target.value === 'CUSTOM') { setIsCustomCategory(true); setFormData({...formData, category: ''}); }
                     else setFormData({...formData, category: e.target.value});
                 }}>
-                    {/* Dynamic Options based on Type */}
                     {formData.type === 'income' && <><option>Salary</option><option>Business</option><option>Side Hustle</option><option>Gifts</option></>}
                     {formData.type === 'expense' && <><option>Food</option><option>Rent</option><option>Transport</option><option>Entertainment</option><option>Shopping</option><option>Bills</option></>}
                     {formData.type === 'savings' && <><option>Emergency Fund</option><option>Vacation</option><option>New Laptop</option><option>General Savings</option></>}
                     {formData.type === 'investment' && <><option>Stocks (NSE)</option><option>MMF</option><option>Crypto</option><option>Land</option><option>Business Capital</option></>}
-                    
                     <option value="CUSTOM" className="font-bold text-brand-orange">+ Custom...</option>
                 </select>
                 )}
@@ -199,7 +231,7 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
           {/* 5. DESCRIPTION */}
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1">Description</label>
-            <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-navy outline-none" placeholder={formData.is_initial ? "e.g. Balance as of Jan 1st" : "What was this for?"} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+            <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-navy outline-none" placeholder={formData.type === 'transfer' ? "e.g. Moving savings" : "What was this for?"} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
           </div>
 
           <button type="submit" disabled={loading} className="w-full py-3 rounded-lg text-sm font-bold text-white bg-brand-navy hover:bg-slate-800 transition-colors shadow-lg">

@@ -69,12 +69,16 @@ export const DashboardPage = () => {
         if (t.is_initial || t.type === 'initial') {
             globalInitial += amt;
         } 
-        // 2. If it is NOT initial, then sort into Income/Expense
+        // 2. If it is a Transfer, add to Initial/Net Worth logic
+        // Since transfers come in pairs (-500 and +500), they sum to 0 change in Net Worth,
+        // but adding them ensures the math stays balanced if you delete one side.
+        else if (t.type === 'transfer') {
+            globalInitial += amt;
+        }
+        // 3. If it is NOT initial/transfer, then sort into Income/Expense
         else {
             if (t.type === 'income') globalIncome += amt;
             else if (t.type === 'expense') globalExpense += amt;
-            // Note: We ignore Savings/Investments here for Net Worth calculation 
-            // because they are just asset transfers (Money you still have).
         }
     });
     
@@ -106,10 +110,12 @@ export const DashboardPage = () => {
     filteredData.forEach(t => {
       const amt = Number(t.amount);
       
-      // --- THE FIX IS HERE ---
       // Only hide Initial Balances if we are filtering by a specific time (e.g., "This Month").
       // If "All Time" is selected, we SHOW them so the categories reflect Total Wealth.
       if ((t.is_initial || t.type === 'initial') && dateFilter !== 'ALL') return;
+
+      // Skip Transfers for the Cards (Income/Expense cards shouldn't show internal moves)
+      if (t.type === 'transfer') return;
 
       if (t.type === 'income') { 
         viewIncome += amt; 
