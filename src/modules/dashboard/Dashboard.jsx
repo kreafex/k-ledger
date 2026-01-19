@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Plus, PieChart as PieIcon, Lightbulb, Wallet, 
   TrendingUp, TrendingDown, Briefcase, List, PiggyBank,
-  Eye, EyeOff 
+  Eye, EyeOff, Calendar 
 } from 'lucide-react';
 import { AddTransactionModal } from './AddTransactionModal';
 import { AppLayout } from './AppLayout'; 
@@ -18,6 +18,10 @@ export const DashboardPage = () => {
   
   // --- PRIVACY STATE ---
   const [showPrivacy, setShowPrivacy] = useState(false); 
+
+  // --- FILTER STATE ---
+  const [dateFilter, setDateFilter] = useState('THIS_MONTH'); // Default to This Month
+  const [rawTransactions, setRawTransactions] = useState([]); // Store ALL data here
 
   const [totals, setTotals] = useState({ income: 0, expense: 0, investment: 0, savings: 0, balance: 0 });
   const [insights, setInsights] = useState([]);
@@ -33,89 +37,134 @@ export const DashboardPage = () => {
     savings: ['#06B6D4', '#22D3EE', '#0891B2', '#155E75']
   };
 
-  const loadDashboardData = async (userId) => {
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('amount, type, category, date') 
-      .order('date', { ascending: false });
-
-    if (transactions) {
-      let income = 0, expense = 0, investment = 0, savings = 0, initial = 0;
-      const catGroups = { expense: {}, income: {}, investment: {}, savings: {} };
-
-      transactions.forEach(t => {
-        const amt = Number(t.amount);
-        if (t.type === 'income') { 
-          income += amt; 
-          catGroups.income[t.category] = (catGroups.income[t.category] || 0) + amt; 
-        }
-        else if (t.type === 'expense') { 
-          expense += amt; 
-          catGroups.expense[t.category] = (catGroups.expense[t.category] || 0) + amt; 
-        }
-        else if (t.type === 'investment') { 
-          investment += amt; 
-          catGroups.investment[t.category] = (catGroups.investment[t.category] || 0) + amt; 
-        }
-        else if (t.type === 'savings') { 
-          savings += amt; 
-          catGroups.savings[t.category] = (catGroups.savings[t.category] || 0) + amt; 
-        }
-        else if (t.type === 'initial') { initial += amt; }
-      });
-
-      // --- THE FIX ---
-      // Old Math: (Income) - (Expense + Savings + Invest)
-      // New Math: (Income + Initial) - (Expense)
-      // We STOP subtracting savings/investments because that is money you still have!
-      const netWorth = (initial + income) - expense;
-
-      setTotals({ 
-        income, 
-        expense, 
-        investment, 
-        savings, 
-        balance: netWorth 
-      });
-
-      const toChartData = (map) => Object.keys(map).map(k => ({ name: k, value: map[k] }));
-      const buckets = {
-        overall: [
-          { name: 'Income', value: income }, 
-          { name: 'Expense', value: expense }, 
-          { name: 'Investment', value: investment },
-          { name: 'Savings', value: savings }
-        ].filter(i => i.value > 0),
-        expense: toChartData(catGroups.expense),
-        income: toChartData(catGroups.income),
-        investment: toChartData(catGroups.investment),
-        savings: toChartData(catGroups.savings)
-      };
-      setChartBuckets(buckets);
-      setChartData(buckets[activeChart.toLowerCase()] || buckets.overall);
-
-      const alerts = [];
-      const totalOut = expense + investment + savings;
-      if (totalOut > 0 && savings < (income * 0.1)) alerts.push("Your savings rate is below 10%.");
-      if (expense > income && income > 0) alerts.push("Warning: You are spending more than you earn.");
-      
-      setInsights(alerts.length > 0 ? alerts : ["Your financial health is stable."]);
-    }
-  };
-
-  const handleChartToggle = (type) => { setActiveChart(type); setChartData(chartBuckets[type.toLowerCase()]); };
-  const getSliceColor = (entry, index) => activeChart === 'OVERALL' ? OVERALL_COLOR_MAP[entry.name] : (DETAIL_COLORS[activeChart.toLowerCase()] || ['#ccc'])[index % 5];
-
+  // 1. FETCH DATA (Runs once on mount)
   useEffect(() => {
-    const init = async () => {
+    const fetchAllData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate('/'); return; }
       setUser(user);
-      loadDashboardData(user.id);
+
+      const { data } = await supabase
+        .from('transactions')
+        .select('amount, type, category, date, is_initial') 
+        .order('date', { ascending: false });
+
+      setRawTransactions(data || []);
       setLoading(false);
     };
-    init();
+    fetchAllData();
   }, [navigate]);
+
+  // 2. PROCESS DATA (Runs whenever Filter or Data changes)
+  useEffect(() => {
+    if (loading) return;
+
+    // --- A. CALCULATE NET WORTH (Always All Time) ---
+    let globalIncome = 0, globalExpense = 0, globalInitial = 0;
+    
+    rawTransactions.forEach(t => {
+        const amt = Number(t.amount);
+        
+        // --- FIXED LOGIC HERE ---
+        // 1. If it is an Opening Balance (regardless of type), add to Initial ONLY.
+        if (t.is_initial || t.type === 'initial') {
+            globalInitial += amt;
+        } 
+        // 2. If it is NOT initial, then sort into Income/Expense
+        else {
+            if (t.type === 'income') globalIncome += amt;
+            else if (t.type === 'expense') globalExpense += amt;
+            // Note: We ignore Savings/Investments here for Net Worth calculation 
+            // because they are just asset transfers (Money you still have).
+        }
+    });
+    
+    // Net Worth = (Money You Started With + Money You Earned) - Money You Spent
+    const netWorth = (globalInitial + globalIncome) - globalExpense;
+
+    // --- B. FILTER DATA FOR DASHBOARD VIEW ---
+    const filteredData = rawTransactions.filter(t => {
+        if (dateFilter === 'ALL') return true;
+        
+        const tDate = new Date(t.date);
+        const now = new Date();
+        tDate.setHours(0,0,0,0); now.setHours(0,0,0,0);
+
+        if (dateFilter === 'TODAY') return tDate.getTime() === now.getTime();
+        if (dateFilter === 'THIS_WEEK') {
+            const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+            return tDate >= start;
+        }
+        if (dateFilter === 'THIS_MONTH') return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+        if (dateFilter === 'THIS_YEAR') return tDate.getFullYear() === now.getFullYear();
+        return true;
+    });
+
+    // --- C. CALCULATE VIEW TOTALS ---
+    let viewIncome = 0, viewExpense = 0, viewInvest = 0, viewSavings = 0;
+    const catGroups = { expense: {}, income: {}, investment: {}, savings: {} };
+
+    filteredData.forEach(t => {
+      const amt = Number(t.amount);
+      
+      // Skip "Initial Balances" for the Periodic View (e.g. Income Card shouldn't show Opening Balance)
+      if (t.is_initial || t.type === 'initial') return;
+
+      if (t.type === 'income') { 
+        viewIncome += amt; 
+        catGroups.income[t.category] = (catGroups.income[t.category] || 0) + amt; 
+      }
+      else if (t.type === 'expense') { 
+        viewExpense += amt; 
+        catGroups.expense[t.category] = (catGroups.expense[t.category] || 0) + amt; 
+      }
+      else if (t.type === 'investment') { 
+        viewInvest += amt; 
+        catGroups.investment[t.category] = (catGroups.investment[t.category] || 0) + amt; 
+      }
+      else if (t.type === 'savings') { 
+        viewSavings += amt; 
+        catGroups.savings[t.category] = (catGroups.savings[t.category] || 0) + amt; 
+      }
+    });
+
+    setTotals({ 
+      income: viewIncome, 
+      expense: viewExpense, 
+      investment: viewInvest, 
+      savings: viewSavings, 
+      balance: netWorth // This remains Global!
+    });
+
+    // --- D. PREPARE CHARTS ---
+    const toChartData = (map) => Object.keys(map).map(k => ({ name: k, value: map[k] }));
+    const buckets = {
+      overall: [
+        { name: 'Income', value: viewIncome }, 
+        { name: 'Expense', value: viewExpense }, 
+        { name: 'Investment', value: viewInvest },
+        { name: 'Savings', value: viewSavings }
+      ].filter(i => i.value > 0),
+      expense: toChartData(catGroups.expense),
+      income: toChartData(catGroups.income),
+      investment: toChartData(catGroups.investment),
+      savings: toChartData(catGroups.savings)
+    };
+    setChartBuckets(buckets);
+    setChartData(buckets[activeChart.toLowerCase()] || buckets.overall);
+
+    // --- E. INSIGHTS ---
+    const alerts = [];
+    if (viewExpense > viewIncome && viewIncome > 0) alerts.push("Warning: You are spending more than you earn this period.");
+    if (viewSavings === 0 && viewIncome > 0) alerts.push("You haven't recorded any savings this period.");
+    
+    setInsights(alerts.length > 0 ? alerts : ["Your financial health is stable."]);
+
+  }, [rawTransactions, dateFilter, activeChart, loading]); 
+  // Rerun whenever Filter changes OR Data loads
+
+  const handleChartToggle = (type) => { setActiveChart(type); };
+  const getSliceColor = (entry, index) => activeChart === 'OVERALL' ? OVERALL_COLOR_MAP[entry.name] : (DETAIL_COLORS[activeChart.toLowerCase()] || ['#ccc'])[index % 5];
 
   if (loading) return <div className="h-screen flex items-center justify-center text-brand-navy">Loading...</div>;
 
@@ -124,24 +173,44 @@ export const DashboardPage = () => {
       <div className="max-w-7xl mx-auto">
         
         {/* HEADER */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-brand-navy">Dashboard</h1>
             <p className="text-gray-500">Your financial overview.</p>
           </div>
-          <button 
-            onClick={() => setShowPrivacy(!showPrivacy)} 
-            className="flex items-center gap-2 text-sm text-brand-navy hover:text-brand-orange bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm transition-all"
-          >
-            {showPrivacy ? <EyeOff size={16}/> : <Eye size={16}/>}
-            {showPrivacy ? 'Hide Numbers' : 'Show Numbers'}
-          </button>
+          
+          <div className="flex gap-3">
+             {/* DATE FILTER DROPDOWN */}
+             <div className="relative">
+                <Calendar className="absolute left-3 top-2.5 text-gray-500" size={16} />
+                <select 
+                    value={dateFilter} 
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="pl-10 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-brand-navy font-medium shadow-sm outline-none focus:ring-2 focus:ring-brand-navy cursor-pointer"
+                >
+                    <option value="THIS_MONTH">This Month</option>
+                    <option value="TODAY">Today</option>
+                    <option value="THIS_WEEK">This Week</option>
+                    <option value="THIS_YEAR">This Year</option>
+                    <option value="ALL">All Time</option>
+                </select>
+             </div>
+
+             {/* PRIVACY TOGGLE */}
+             <button 
+                onClick={() => setShowPrivacy(!showPrivacy)} 
+                className="flex items-center gap-2 text-sm text-brand-navy hover:text-brand-orange bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm transition-all"
+            >
+                {showPrivacy ? <EyeOff size={16}/> : <Eye size={16}/>}
+                <span className="hidden sm:inline">{showPrivacy ? 'Hide' : 'Show'}</span>
+            </button>
+          </div>
         </div>
 
         {/* MONEY CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           
-          {/* 1. Net Worth (Big Card) */}
+          {/* 1. Net Worth (Big Card) - ALWAYS ALL TIME */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-lg sm:col-span-2 lg:col-span-1 relative overflow-hidden">
             <div className="flex justify-between items-start z-10 relative">
               <div>
@@ -152,6 +221,7 @@ export const DashboardPage = () => {
                 >
                   KES {totals.balance.toLocaleString()}
                 </h2>
+                <p className="text-[10px] text-slate-500 mt-1">Total Accumulated Wealth</p>
               </div>
               <div className="p-2 bg-slate-700 rounded-lg"><Wallet size={20} className="text-white"/></div>
             </div>
@@ -166,6 +236,7 @@ export const DashboardPage = () => {
             <h2 className={`text-xl font-bold text-green-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
               + {totals.income.toLocaleString()}
             </h2>
+            <p className="text-[10px] text-gray-400 mt-1 uppercase">{dateFilter.replace('_', ' ')}</p>
           </div>
 
           {/* 3. Expenses */}
@@ -177,6 +248,7 @@ export const DashboardPage = () => {
             <h2 className={`text-xl font-bold text-red-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
               - {totals.expense.toLocaleString()}
             </h2>
+            <p className="text-[10px] text-gray-400 mt-1 uppercase">{dateFilter.replace('_', ' ')}</p>
           </div>
 
           {/* 4. Savings */}
@@ -188,6 +260,7 @@ export const DashboardPage = () => {
             <h2 className={`text-xl font-bold text-cyan-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
               {totals.savings.toLocaleString()}
             </h2>
+            <p className="text-[10px] text-gray-400 mt-1 uppercase">{dateFilter.replace('_', ' ')}</p>
           </div>
 
           {/* 5. Investments */}
@@ -199,6 +272,7 @@ export const DashboardPage = () => {
             <h2 className={`text-xl font-bold text-purple-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
               {totals.investment.toLocaleString()}
             </h2>
+            <p className="text-[10px] text-gray-400 mt-1 uppercase">{dateFilter.replace('_', ' ')}</p>
           </div>
         </div>
 
@@ -274,7 +348,14 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      <AddTransactionModal isOpen={showModal} onClose={() => setShowModal(false)} userId={user?.id} onSuccess={() => loadDashboardData(user.id)} />
+      <AddTransactionModal isOpen={showModal} onClose={() => setShowModal(false)} userId={user?.id} onSuccess={() => {
+         // Reload data when modal closes successfully
+         const fetchData = async () => {
+            const { data } = await supabase.from('transactions').select('amount, type, category, date, is_initial').order('date', { ascending: false });
+            setRawTransactions(data || []);
+         };
+         fetchData();
+      }} />
     </AppLayout>
   );
 };
