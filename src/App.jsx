@@ -29,35 +29,33 @@ const App = () => {
   }, []);
 
   // Show a blank screen or spinner while checking if user is logged in
-  if (loading) return <div className="h-screen w-screen bg-slate-950"></div>;
+  if (loading) return <div className="h-screen w-screen bg-slate-950 flex items-center justify-center text-white">Loading...</div>;
 
   return (
     <Router>
       <Routes>
-        {/* --- PUBLIC ROUTES --- */}
         
-        {/* 1. Root Path ('/') -> ALWAYS shows Landing Page */}
+        {/* === RULE 1: The "/" path refers to the Landing Page === */}
         <Route path="/" element={<LandingPage />} />
 
-        {/* 2. Auth Path ('/auth') -> Shows Login (or redirects to dashboard if already logged in) */}
+        {/* === RULE 2: The "/auth" path refers to Login === */}
+        {/* If user is ALREADY logged in, bounce them to Dashboard */}
         <Route path="/auth" element={!session ? <AuthPage /> : <Navigate to="/dashboard" />} />
 
 
-        {/* --- PROTECTED ROUTES (Require Login) --- */}
+        {/* === RULE 3: Protected Routes (Must be logged in) === */}
         
-        {/* 3. Dashboard -> Protected */}
         <Route 
           path="/dashboard" 
           element={session ? <DashboardPage /> : <Navigate to="/auth" />} 
         />
         
-        {/* 4. Transactions -> Protected */}
         <Route 
           path="/transactions" 
           element={session ? <TransactionsPage /> : <Navigate to="/auth" />} 
         />
 
-        {/* 5. Catch-all: If user types random junk, go to Home */}
+        {/* === RULE 4: Catch-all (Redirect random URLs to Home) === */}
         <Route path="*" element={<Navigate to="/" />} />
 
       </Routes>
