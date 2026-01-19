@@ -3,7 +3,7 @@ import { supabase } from '../../supabase';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import { AddTransactionModal } from '../dashboard/AddTransactionModal';
-import { AppLayout } from '../dashboard/AppLayout'; // <--- Using Master Layout
+import { AppLayout } from '../dashboard/AppLayout'; 
 
 export const TransactionsPage = () => {
   const navigate = useNavigate();
@@ -45,6 +45,9 @@ export const TransactionsPage = () => {
     return matchesSearch && matchesType;
   });
 
+  // Helper to determine if a transaction is "Positive" (Money In)
+  const isPositive = (type) => ['income', 'initial'].includes(type);
+
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto">
@@ -63,15 +66,15 @@ export const TransactionsPage = () => {
         {/* Filters & Search */}
         <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row gap-4 items-center">
           
-          {/* SEARCH (Slightly smaller width now) */}
+          {/* SEARCH */}
           <div className="relative w-full md:w-1/3">
             <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
             <input type="text" placeholder="Search..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-navy outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           
-          {/* FILTER BUTTONS (Added SAVINGS) */}
+          {/* FILTER BUTTONS (Added INITIAL) */}
           <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-            {['ALL', 'INCOME', 'EXPENSE', 'SAVINGS', 'INVESTMENT'].map(type => (
+            {['ALL', 'INCOME', 'EXPENSE', 'SAVINGS', 'INVESTMENT', 'INITIAL'].map(type => (
               <button key={type} onClick={() => setFilterType(type)} className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${filterType === type ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{type}</button>
             ))}
           </div>
@@ -103,6 +106,7 @@ export const TransactionsPage = () => {
                           ${t.type === 'income' ? 'bg-green-100 text-green-800' : 
                             t.type === 'expense' ? 'bg-red-100 text-red-800' : 
                             t.type === 'savings' ? 'bg-cyan-100 text-cyan-800' : 
+                            t.type === 'initial' ? 'bg-teal-100 text-teal-800' : 
                             'bg-purple-100 text-purple-800'}`}>
                           {t.category}
                         </span>
@@ -112,19 +116,17 @@ export const TransactionsPage = () => {
                         {t.description || '-'} <span className="text-gray-400 text-xs">({t.frequency || 'One-time'})</span>
                       </td>
                       
+                      {/* FIXED AMOUNT DISPLAY LOGIC */}
                       <td className={`px-6 py-4 text-sm text-right font-bold whitespace-nowrap
-                        ${t.type === 'income' ? 'text-green-600' : 
-                          t.type === 'expense' ? 'text-red-600' : 
-                          t.type === 'savings' ? 'text-cyan-600' : 
-                          'text-purple-600'}`}>
-                        {t.type === 'income' ? '+' : '-'} {Number(t.amount).toLocaleString()}
+                        ${isPositive(t.type) ? 'text-green-600' : 'text-red-600'}`}>
+                        {isPositive(t.type) ? '+' : '-'} {Number(t.amount).toLocaleString()}
                       </td>
                       
                       <td className="px-6 py-4 text-center whitespace-nowrap">
-                         <div className="flex justify-center gap-2">
-                          <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1"><Pencil size={16} /></button>
-                          <button onClick={() => handleDelete(t.id)} className="text-red-600 hover:text-red-800 p-1"><Trash2 size={16} /></button>
-                         </div>
+                          <div className="flex justify-center gap-2">
+                           <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1"><Pencil size={16} /></button>
+                           <button onClick={() => handleDelete(t.id)} className="text-red-600 hover:text-red-800 p-1"><Trash2 size={16} /></button>
+                          </div>
                       </td>
                     </tr>
                   ))
