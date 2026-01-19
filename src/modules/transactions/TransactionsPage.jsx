@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Wallet } from 'lucide-react';
 import { AddTransactionModal } from '../dashboard/AddTransactionModal';
 import { AppLayout } from '../dashboard/AppLayout'; 
 
@@ -15,7 +15,11 @@ export const TransactionsPage = () => {
   const [editingTransaction, setEditingTransaction] = useState(null);
 
   const loadTransactions = async (userId) => {
-    const { data } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+    // UPDATED: Now selecting the new columns 'account' and 'is_initial'
+    const { data } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
     setTransactions(data || []);
   };
 
@@ -38,15 +42,25 @@ export const TransactionsPage = () => {
 
   const handleEdit = (t) => { setEditingTransaction(t); setShowModal(true); };
 
+  // --- UPDATED FILTER LOGIC ---
   const filteredData = transactions.filter(t => {
     const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          t.category?.toLowerCase().includes(searchTerm.toLowerCase());
+                          t.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          t.account?.toLowerCase().includes(searchTerm.toLowerCase()); // Added Account Search
+    
+    // The "INITIAL" filter now checks the 'is_initial' flag OR the old 'type'
+    if (filterType === 'INITIAL') {
+        return matchesSearch && (t.is_initial === true || t.type === 'initial');
+    }
+    
+    // For other filters, we match the Type normally
     const matchesType = filterType === 'ALL' || t.type.toUpperCase() === filterType;
     return matchesSearch && matchesType;
   });
 
   // Helper to determine if a transaction is "Positive" (Money In)
-  const isPositive = (type) => ['income', 'initial'].includes(type);
+  const isPositive = (type) => ['income', 'initial'].includes(type) || (type === 'savings' && false); 
+  // Note: Savings logic depends on how you view it, but usually standard expenses are Red.
 
   return (
     <AppLayout>
@@ -69,10 +83,10 @@ export const TransactionsPage = () => {
           {/* SEARCH */}
           <div className="relative w-full md:w-1/3">
             <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            <input type="text" placeholder="Search..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-navy outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="Search category, account..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-navy outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           
-          {/* FILTER BUTTONS (Added INITIAL) */}
+          {/* FILTER BUTTONS */}
           <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
             {['ALL', 'INCOME', 'EXPENSE', 'SAVINGS', 'INVESTMENT', 'INITIAL'].map(type => (
               <button key={type} onClick={() => setFilterType(type)} className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${filterType === type ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{type}</button>
@@ -88,6 +102,7 @@ export const TransactionsPage = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th> {/* NEW COLUMN */}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -95,7 +110,7 @@ export const TransactionsPage = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredData.length === 0 ? (
-                  <tr><td colSpan="5" className="px-6 py-10 text-center text-gray-400 text-sm">No records found.</td></tr>
+                  <tr><td colSpan="6" className="px-6 py-10 text-center text-gray-400 text-sm">No records found.</td></tr>
                 ) : (
                   filteredData.map((t) => (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
@@ -103,23 +118,30 @@ export const TransactionsPage = () => {
                       
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${t.type === 'income' ? 'bg-green-100 text-green-800' : 
+                          ${t.is_initial ? 'bg-teal-100 text-teal-800' : 
+                            t.type === 'income' ? 'bg-green-100 text-green-800' : 
                             t.type === 'expense' ? 'bg-red-100 text-red-800' : 
                             t.type === 'savings' ? 'bg-cyan-100 text-cyan-800' : 
-                            t.type === 'initial' ? 'bg-teal-100 text-teal-800' : 
                             'bg-purple-100 text-purple-800'}`}>
                           {t.category}
                         </span>
+                      </td>
+
+                      {/* NEW ACCOUNT COLUMN */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                            <Wallet size={14} className="text-gray-400"/>
+                            {t.account || 'Cash'}
+                        </div>
                       </td>
                       
                       <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate">
                         {t.description || '-'} <span className="text-gray-400 text-xs">({t.frequency || 'One-time'})</span>
                       </td>
                       
-                      {/* FIXED AMOUNT DISPLAY LOGIC */}
                       <td className={`px-6 py-4 text-sm text-right font-bold whitespace-nowrap
-                        ${isPositive(t.type) ? 'text-green-600' : 'text-red-600'}`}>
-                        {isPositive(t.type) ? '+' : '-'} {Number(t.amount).toLocaleString()}
+                        ${isPositive(t.type) || t.is_initial ? 'text-green-600' : 'text-red-600'}`}>
+                        {isPositive(t.type) || t.is_initial ? '+' : '-'} {Number(t.amount).toLocaleString()}
                       </td>
                       
                       <td className="px-6 py-4 text-center whitespace-nowrap">
