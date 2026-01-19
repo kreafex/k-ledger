@@ -1,25 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase';
 import { useNavigate } from 'react-router-dom';
-import { Plus, PieChart as PieIcon, Lightbulb, Wallet, TrendingUp, TrendingDown, Briefcase, List, PiggyBank } from 'lucide-react';
+import { 
+  Plus, PieChart as PieIcon, Lightbulb, Wallet, 
+  TrendingUp, TrendingDown, Briefcase, List, PiggyBank,
+  Eye, EyeOff // <--- ADDED PRIVACY ICONS
+} from 'lucide-react';
 import { AddTransactionModal } from './AddTransactionModal';
-import { AppLayout } from './AppLayout'; // <--- UPDATED: Using Master Layout
+import { AppLayout } from './AppLayout'; 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-export const Dashboard = () => {
+export const DashboardPage = () => { // <--- Renamed to match your router import
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   
-  // Data State - NOW INCLUDES SAVINGS
+  // --- PRIVACY STATE ---
+  const [showPrivacy, setShowPrivacy] = useState(false); // Default: Hidden (Blurred)
+
+  // Data State
   const [totals, setTotals] = useState({ income: 0, expense: 0, investment: 0, savings: 0, balance: 0 });
   const [insights, setInsights] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [activeChart, setActiveChart] = useState('OVERALL');
   const [chartBuckets, setChartBuckets] = useState({ overall: [], expense: [], income: [], investment: [], savings: [] });
 
-  // Colors - NOW INCLUDES SAVINGS (Cyan)
+  // Colors
   const OVERALL_COLOR_MAP = { 'Income': '#10B981', 'Expense': '#EF4444', 'Investment': '#8B5CF6', 'Savings': '#06B6D4' };
   const DETAIL_COLORS = {
     expense: ['#EF4444', '#F97316', '#F59E0B', '#B91C1C', '#991B1B'], 
@@ -29,7 +36,6 @@ export const Dashboard = () => {
   };
 
   const loadDashboardData = async (userId) => {
-    // Fetch necessary columns only
     const { data: transactions } = await supabase
       .from('transactions')
       .select('amount, type, category, date') 
@@ -61,13 +67,17 @@ export const Dashboard = () => {
         else if (t.type === 'initial') { initial += amt; }
       });
 
-      // Net Balance Calculation
+      // NET WORTH CALCULATION (Asset-Based)
+      // Net Worth = (Income + Initial) - Expenses
+      // Savings & Investments are RETAINED assets, so they stay in the Net Worth figure.
+      const netWorth = (initial + income) - expense;
+
       setTotals({ 
         income, 
         expense, 
         investment, 
         savings, 
-        balance: (initial + income) - (expense + investment + savings) 
+        balance: netWorth 
       });
 
       // Build Charts
@@ -117,15 +127,36 @@ export const Dashboard = () => {
     <AppLayout>
       <div className="max-w-7xl mx-auto">
         
+        {/* HEADER WITH PRIVACY TOGGLE */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-brand-navy">Dashboard</h1>
+            <p className="text-gray-500">Your financial overview.</p>
+          </div>
+          <button 
+            onClick={() => setShowPrivacy(!showPrivacy)} 
+            className="flex items-center gap-2 text-sm text-brand-navy hover:text-brand-orange bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm transition-all"
+          >
+            {showPrivacy ? <EyeOff size={16}/> : <Eye size={16}/>}
+            {showPrivacy ? 'Hide Numbers' : 'Show Numbers'}
+          </button>
+        </div>
+
         {/* MONEY CARDS - Updated Grid for 5 items */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           
-          {/* 1. Net Balance */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-lg sm:col-span-2 lg:col-span-1">
-            <div className="flex justify-between items-start">
+          {/* 1. Net Worth (Big Card) */}
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-lg sm:col-span-2 lg:col-span-1 relative overflow-hidden">
+            <div className="flex justify-between items-start z-10 relative">
               <div>
-                <p className="text-slate-400 text-xs font-bold uppercase">Net Cash</p>
-                <h2 className="text-2xl font-bold mt-1">KES {totals.balance.toLocaleString()}</h2>
+                <p className="text-slate-400 text-xs font-bold uppercase">Net Worth</p>
+                {/* PRIVACY BLUR */}
+                <h2 
+                  onClick={() => setShowPrivacy(!showPrivacy)}
+                  className={`text-2xl font-bold mt-1 cursor-pointer transition-all duration-300 ${showPrivacy ? 'blur-0' : 'blur-md'}`}
+                >
+                  KES {totals.balance.toLocaleString()}
+                </h2>
               </div>
               <div className="p-2 bg-slate-700 rounded-lg"><Wallet size={20} className="text-white"/></div>
             </div>
@@ -137,7 +168,9 @@ export const Dashboard = () => {
               <p className="text-gray-500 text-xs font-bold uppercase">Income</p>
               <TrendingUp size={16} className="text-green-500"/>
             </div>
-            <h2 className="text-xl font-bold text-green-600">+ {totals.income.toLocaleString()}</h2>
+            <h2 className={`text-xl font-bold text-green-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
+              + {totals.income.toLocaleString()}
+            </h2>
           </div>
 
           {/* 3. Expenses */}
@@ -146,16 +179,20 @@ export const Dashboard = () => {
               <p className="text-gray-500 text-xs font-bold uppercase">Expenses</p>
               <TrendingDown size={16} className="text-red-500"/>
             </div>
-            <h2 className="text-xl font-bold text-red-600">- {totals.expense.toLocaleString()}</h2>
+            <h2 className={`text-xl font-bold text-red-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
+              - {totals.expense.toLocaleString()}
+            </h2>
           </div>
 
-          {/* 4. Savings (NEW) */}
+          {/* 4. Savings */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-1">
               <p className="text-gray-500 text-xs font-bold uppercase">Savings</p>
               <PiggyBank size={16} className="text-cyan-500"/>
             </div>
-            <h2 className="text-xl font-bold text-cyan-600">{totals.savings.toLocaleString()}</h2>
+            <h2 className={`text-xl font-bold text-cyan-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
+              {totals.savings.toLocaleString()}
+            </h2>
           </div>
 
           {/* 5. Investments */}
@@ -164,7 +201,9 @@ export const Dashboard = () => {
               <p className="text-gray-500 text-xs font-bold uppercase">Invest</p>
               <Briefcase size={16} className="text-purple-500"/>
             </div>
-            <h2 className="text-xl font-bold text-purple-600">{totals.investment.toLocaleString()}</h2>
+            <h2 className={`text-xl font-bold text-purple-600 transition-all ${showPrivacy ? 'blur-0' : 'blur-sm'}`}>
+              {totals.investment.toLocaleString()}
+            </h2>
           </div>
         </div>
 
@@ -232,7 +271,11 @@ export const Dashboard = () => {
                   >
                     {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={getSliceColor(entry, index)} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value) => `KES ${value.toLocaleString()}`} />
+                  {/* Tooltip respects privacy setting too! */}
+                  <Tooltip 
+                     formatter={(value) => showPrivacy ? `KES ${value.toLocaleString()}` : '***'}
+                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                  />
                   <Legend verticalAlign="bottom" height={36}/>
                 </PieChart>
               </ResponsiveContainer>
