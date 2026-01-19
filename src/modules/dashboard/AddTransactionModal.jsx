@@ -31,22 +31,21 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
           date: new Date(transactionToEdit.date).toISOString().split('T')[0]
         });
         
-        // --- UPDATED STANDARD LIST TO INCLUDE SPECIFIC ACCOUNTS ---
+        // Custom category check
         const standardCats = [
           // Income
           'Salary', 'Business', 'Side Hustle', 'Gifts', 
           // Expense
           'Food', 'Rent', 'Transport', 'Entertainment', 'Shopping', 'Bills',
           // Savings
-          'Emergency Fund', 'Vacation', 'Gadgets', 'New Laptop', 'Car Fund', 'General Savings',
+          'Emergency Fund', 'Vacation', 'New Laptop', 'Car Fund', 'General Savings',
           // Investment
           'Stocks (NSE)', 'MMF', 'Crypto', 'Land', 'Business Capital',
-          // Initial / Assets (Expanded List)
+          // Initial / Assets
           'Bank Balance', 'M-Pesa', 'Cash', 'M-Shwari', 'KCB', 'Equity', 'Co-op', 
           'Sacco', 'PayPal', 'Binance', 'Creditor', 'Other Asset'
         ];
         
-        // If the category is NOT in the list above, switch to "Custom Input" mode automatically
         setIsCustomCategory(!standardCats.includes(transactionToEdit.category));
       } else {
         setFormData(defaultState);
@@ -123,12 +122,14 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
 
         <form onSubmit={handleSubmit} className="space-y-5">
           
-          {/* TYPE TOGGLES */}
+          {/* --- FIXED: ADDED THE 5TH BUTTON FOR "INITIAL" --- */}
           <div className="flex rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <button type="button" onClick={() => setFormData({ ...formData, type: 'income' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold ${formData.type === 'income' ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INCOME</button>
             <button type="button" onClick={() => setFormData({ ...formData, type: 'expense' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'expense' ? 'bg-red-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>EXPENSE</button>
-            <button type="button" onClick={() => setFormData({ ...formData, type: 'savings' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'savings' ? 'bg-cyan-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>SAVING</button>
+            <button type="button" onClick={() => setFormData({ ...formData, type: 'savings' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'savings' ? 'bg-cyan-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>SAVINGS</button>
             <button type="button" onClick={() => setFormData({ ...formData, type: 'investment' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'investment' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INVEST</button>
+            
+            {/* HERE IS THE MISSING BUTTON */}
             <button type="button" onClick={() => setFormData({ ...formData, type: 'initial' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'initial' ? 'bg-teal-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INITIAL</button>
           </div>
 
@@ -160,7 +161,7 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
                 {formData.type === 'savings' && <><option>Emergency Fund</option><option>Vacation</option><option>New Laptop</option><option>Car Fund</option><option>General Savings</option></>}
                 {formData.type === 'investment' && <><option>Stocks (NSE)</option><option>MMF</option><option>Crypto</option><option>Land</option><option>Business Capital</option></>}
                 
-                {/* --- EXTENDED INITIAL OPTIONS --- */}
+                {/* INITIAL OPTIONS */}
                 {formData.type === 'initial' && <>
                   <option>Bank Balance</option>
                   <option>M-Pesa</option>
