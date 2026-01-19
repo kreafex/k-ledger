@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
-import { X, Wallet, ArrowRightLeft } from 'lucide-react'; // Added Arrow Icon
+import { X, Wallet, ArrowRightLeft } from 'lucide-react';
 
 export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transactionToEdit }) => {
   const [loading, setLoading] = useState(false);
@@ -12,8 +12,8 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
     amount: '',
     type: 'expense', 
     category: 'Food',
-    account: 'M-Pesa',      // FROM Account
-    to_account: 'Cash',     // TO Account (For Transfers)
+    account: 'M-Pesa',      
+    to_account: 'Cash',    
     is_initial: false, 
     frequency: 'One-time',
     description: '',
@@ -25,10 +25,9 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
   useEffect(() => {
     if (isOpen) {
       if (transactionToEdit) {
-        // Edit mode logic (simplified for now)
         setFormData({
           ...defaultState,
-          amount: Math.abs(transactionToEdit.amount), // Always show positive in edit
+          amount: Math.abs(transactionToEdit.amount),
           type: transactionToEdit.type,
           category: transactionToEdit.category,
           account: transactionToEdit.account || 'M-Pesa',
@@ -61,63 +60,76 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { alert("Please login again."); setLoading(false); return; }
 
-      // --- LOGIC FOR TRANSFERS vs REGULAR ---
-      const recordsToInsert = [];
-
-      if (formData.type === 'transfer') {
-        // Record 1: WITHDRAWAL from Origin
-        recordsToInsert.push({
-            amount: -finalAmount, // Negative
-            type: 'transfer',
-            category: 'Transfer',
-            account: formData.account, // From M-Pesa
-            description: `Transfer to ${formData.to_account}`,
-            date: new Date(formData.date).toISOString(),
-            owner_id: user.id
-        });
-
-        // Record 2: DEPOSIT to Destination
-        recordsToInsert.push({
-            amount: finalAmount, // Positive
-            type: 'transfer',
-            category: 'Transfer',
-            account: formData.to_account, // To Cash
-            description: `Transfer from ${formData.account}`,
-            date: new Date(formData.date).toISOString(),
-            owner_id: user.id
-        });
-
-      } else {
-        // Standard Expense/Income/Savings
-        const finalCategory = formData.is_initial ? 'Opening Balance' : formData.category;
-        const finalDesc = formData.is_initial ? 'Starting Balance' : formData.description;
-        
-        // Expenses are stored as NEGATIVE numbers, Income/Savings/Initial as POSITIVE
-        // But wait! In your previous dashboard logic, you handled the math in the frontend.
-        // To make "Transfers" work easily with Net Worth, it's best to store Expenses as NEGATIVE in the DB.
-        // HOWEVER, to keep your current system stable, let's store absolute numbers and let the type decide.
-        // Actually, for Transfers to sum to 0 naturally, we MUST store signs.
-        
-        // Let's stick to your current system: Positive numbers in DB, logic handles sign.
-        // BUT for transfers, we need one neg and one pos.
-        // So for now, we will save Transfers with Explicit Signs, and keep others as is.
-        
-        recordsToInsert.push({
-            amount: finalAmount,
+      // --- 1. HANDLE EDIT (UPDATE) ---
+      if (transactionToEdit) {
+        // When editing, we treat transfers as single records to keep it simple
+        const updatePayload = {
+            amount: formData.type === 'expense' || (formData.type === 'transfer' && transactionToEdit.amount < 0) ? -finalAmount : finalAmount,
             type: formData.type,
-            category: finalCategory,
+            category: formData.category,
             account: formData.account,
-            is_initial: formData.is_initial,
-            frequency: formData.frequency,
-            description: finalDesc,
+            description: formData.description,
             date: new Date(formData.date).toISOString(),
-            owner_id: user.id
-        });
-      }
+            is_initial: formData.is_initial
+        };
 
-      // Execute Database Insert
-      const { error } = await supabase.from('transactions').insert(recordsToInsert);
-      if (error) throw error;
+        const { error } = await supabase
+            .from('transactions')
+            .update(updatePayload)
+            .eq('id', transactionToEdit.id);
+            
+        if (error) throw error;
+
+      } 
+      // --- 2. HANDLE NEW (INSERT) ---
+      else {
+          const recordsToInsert = [];
+
+          if (formData.type === 'transfer') {
+            // Withdrawal
+            recordsToInsert.push({
+                amount: -finalAmount, 
+                type: 'transfer',
+                category: 'Transfer',
+                account: formData.account, 
+                description: `Transfer to ${formData.to_account}`,
+                date: new Date(formData.date).toISOString(),
+                owner_id: user.id
+            });
+            // Deposit
+            recordsToInsert.push({
+                amount: finalAmount, 
+                type: 'transfer',
+                category: 'Transfer',
+                account: formData.to_account, 
+                description: `Transfer from ${formData.account}`,
+                date: new Date(formData.date).toISOString(),
+                owner_id: user.id
+            });
+          } else {
+            // Regular Transaction
+            const finalCategory = formData.is_initial ? 'Opening Balance' : formData.category;
+            const finalDesc = formData.is_initial ? 'Starting Balance' : formData.description;
+            
+            // Note: Expenses are typically negative, but your app logic handles signs in the Dashboard.
+            // However, to keep Transfers consistent, we might want to store Expenses as negative eventually.
+            // For now, we stick to your current Positive-Number convention for consistency.
+            recordsToInsert.push({
+                amount: finalAmount,
+                type: formData.type,
+                category: finalCategory,
+                account: formData.account,
+                is_initial: formData.is_initial,
+                frequency: formData.frequency,
+                description: finalDesc,
+                date: new Date(formData.date).toISOString(),
+                owner_id: user.id
+            });
+          }
+
+          const { error } = await supabase.from('transactions').insert(recordsToInsert);
+          if (error) throw error;
+      }
 
       onSuccess();
       onClose();
@@ -141,7 +153,7 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
 
         <form onSubmit={handleSubmit} className="space-y-5">
           
-          {/* 1. TYPE TOGGLES - ADDED TRANSFER */}
+          {/* TYPE TOGGLES */}
           <div className="flex rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <button type="button" onClick={() => setFormData({ ...formData, type: 'income' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold ${formData.type === 'income' ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INCOME</button>
             <button type="button" onClick={() => setFormData({ ...formData, type: 'expense' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'expense' ? 'bg-red-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>EXPENSE</button>
@@ -150,20 +162,16 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
             <button type="button" onClick={() => setFormData({ ...formData, type: 'investment' })} className={`flex-1 py-2 text-[10px] sm:text-xs font-bold border-l border-gray-200 ${formData.type === 'investment' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>INVEST</button>
           </div>
 
-          {/* 2. TRANSFER LOGIC vs REGULAR LOGIC */}
-          {formData.type === 'transfer' ? (
+          {/* FORM LOGIC */}
+          {formData.type === 'transfer' && !transactionToEdit ? (
              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-4">
-                {/* FROM */}
                 <div>
                    <label className="block text-xs font-bold text-gray-500 mb-1">From Account (Withdraw)</label>
                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={formData.account} onChange={(e) => setFormData({ ...formData, account: e.target.value })}>
                        <option>M-Pesa</option><option>Cash</option><option>Equity Bank</option><option>KCB</option><option>Co-op Bank</option><option>M-Shwari</option><option>MMF (Savings)</option>
                    </select>
                 </div>
-                
                 <div className="flex justify-center"><ArrowRightLeft size={20} className="text-blue-400"/></div>
-
-                {/* TO */}
                 <div>
                    <label className="block text-xs font-bold text-gray-500 mb-1">To Account (Deposit)</label>
                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={formData.to_account} onChange={(e) => setFormData({ ...formData, to_account: e.target.value })}>
@@ -172,7 +180,6 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
                 </div>
              </div>
           ) : (
-             /* REGULAR ACCOUNT SELECTOR */
              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <div className="mb-3">
                    <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
@@ -182,8 +189,7 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
                        <option>M-Pesa</option><option>Cash</option><option>Equity Bank</option><option>KCB</option><option>Co-op Bank</option><option>M-Shwari</option><option>MMF (Savings)</option><option>Binance</option><option>Sacco</option>
                    </select>
                 </div>
-
-                {formData.type !== 'expense' && (
+                {formData.type !== 'expense' && formData.type !== 'transfer' && (
                    <div className="flex items-center gap-2">
                        <input type="checkbox" id="isInitial" checked={formData.is_initial} onChange={(e) => setFormData({...formData, is_initial: e.target.checked})} className="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy"/>
                        <label htmlFor="isInitial" className="text-sm text-gray-700 font-medium">This is my starting balance</label>
@@ -192,7 +198,6 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
              </div>
           )}
 
-          {/* 3. AMOUNT & DATE */}
           <div className="flex gap-4">
             <div className="w-1/2">
               <label className="block text-xs font-bold text-gray-500 mb-1">Date</label>
@@ -204,7 +209,6 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
             </div>
           </div>
 
-          {/* 4. CATEGORY (Hidden for Transfer & Initial) */}
           {formData.type !== 'transfer' && !formData.is_initial && (
             <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1">Category</label>
@@ -228,14 +232,13 @@ export const AddTransactionModal = ({ isOpen, onClose, onSuccess, userId, transa
             </div>
           )}
 
-          {/* 5. DESCRIPTION */}
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1">Description</label>
             <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-navy outline-none" placeholder={formData.type === 'transfer' ? "e.g. Moving savings" : "What was this for?"} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
           </div>
 
           <button type="submit" disabled={loading} className="w-full py-3 rounded-lg text-sm font-bold text-white bg-brand-navy hover:bg-slate-800 transition-colors shadow-lg">
-            {loading ? 'Saving...' : 'Save Record'}
+            {loading ? 'Saving...' : (transactionToEdit ? 'Update Transaction' : 'Save Transaction')}
           </button>
         </form>
       </div>

@@ -38,9 +38,26 @@ export const TransactionsPage = () => {
   }, [navigate]);
 
   const handleDelete = async (id) => {
-    if (confirm("Permanently delete this record?")) {
-      await supabase.from('transactions').delete().eq('id', id);
-      loadTransactions(user.id);
+    if (!confirm("Permanently delete this record?")) return;
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Delete Error:', error);
+        alert('Failed to delete: ' + error.message); // <--- This will tell you the reason!
+        return;
+      }
+
+      // If successful, reload
+      await loadTransactions(user.id);
+      
+    } catch (err) {
+      console.error('Unexpected Error:', err);
+      alert('An unexpected error occurred.');
     }
   };
 
