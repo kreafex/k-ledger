@@ -2,19 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
-// --- IMPORT PATHS FIXED ---
+// --- IMPORT PATHS ---
 
-// 1. Landing Page (File: src/modules/landing/LandingPage.jsx)
+// 1. Landing Page
 import { LandingPage } from './modules/landing/LandingPage';
 
-// 2. Dashboard (File: src/modules/dashboard/Dashboard.jsx) <--- FIXED PATH
+// 2. Dashboard 
 import { DashboardPage } from './modules/dashboard/Dashboard';
 
-// 3. Transactions (File: src/modules/transactions/TransactionsPage.jsx)
+// 3. Transactions 
 import { TransactionsPage } from './modules/transactions/TransactionsPage';
 
-// 4. Auth (File: src/modules/auth/AuthPage.jsx)
+// 4. Auth 
 import { AuthPage } from './modules/auth/AuthPage';
+
+// 5. NEW PAGES (Budgets, Planner, Settings)
+import { BudgetsPage } from './modules/budgets/BudgetsPage';
+import { PlannerPage } from './modules/planner/PlannerPage';
+import { SettingsPage } from './modules/settings/SettingsPage';
+
 
 const App = () => {
   const [session, setSession] = useState(null);
@@ -47,20 +53,39 @@ const App = () => {
         <Route path="/" element={<LandingPage />} />
 
         {/* === RULE 2: The "/auth" path refers to Login === */}
-        {/* If user is ALREADY logged in, bounce them to Dashboard */}
         <Route path="/auth" element={!session ? <AuthPage /> : <Navigate to="/dashboard" />} />
 
 
-        {/* === RULE 3: Protected Routes (Must be logged in) === */}
+        {/* === RULE 3: PROTECTED ROUTES (Must be logged in) === */}
         
+        {/* Dashboard */}
         <Route 
           path="/dashboard" 
           element={session ? <DashboardPage /> : <Navigate to="/auth" />} 
         />
         
+        {/* Transactions */}
         <Route 
           path="/transactions" 
           element={session ? <TransactionsPage /> : <Navigate to="/auth" />} 
+        />
+
+        {/* Budgets */}
+        <Route 
+          path="/budgets" 
+          element={session ? <BudgetsPage /> : <Navigate to="/auth" />} 
+        />
+
+        {/* Planner */}
+        <Route 
+          path="/planner" 
+          element={session ? <PlannerPage /> : <Navigate to="/auth" />} 
+        />
+
+        {/* Settings */}
+        <Route 
+          path="/settings" 
+          element={session ? <SettingsPage /> : <Navigate to="/auth" />} 
         />
 
         {/* === RULE 4: Catch-all (Redirect random URLs to Home) === */}
